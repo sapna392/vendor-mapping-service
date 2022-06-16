@@ -1,6 +1,7 @@
 package com.vfs.onb.entity;
 
 import java.util.Date;
+import java.util.List;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -10,15 +11,16 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
+import javax.persistence.Transient;
 
 import lombok.Data;
 
 @Entity
 @Data
-@Table(name="HISTORY_IM_VENDOR_MAPPING")
-public class VendorIMMappingHistory {
-	
-	@Column(name = "REQUEST_ID")
+@Table(name="MASTER_IM_VENDOR_MAPPING")
+public class VendorIMMappingMaster {
+
+	@Column(name = "SEQUENCE_ID")
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	private Long reqid;
@@ -55,6 +57,4 @@ public class VendorIMMappingHistory {
 	@Column(name="AUTHORIZED_BY")
 	private String authorizedby;
 	
-	@Column(name="ACTION")
-	private String action;
 }

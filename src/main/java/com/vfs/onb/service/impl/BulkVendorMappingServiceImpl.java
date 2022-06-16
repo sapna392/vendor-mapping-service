@@ -6,8 +6,9 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
+
+import javax.transaction.Transactional;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -19,8 +20,11 @@ import org.springframework.web.multipart.MultipartFile;
 import com.vfs.onb.common.StatusConstant;
 import com.vfs.onb.dto.BulkVendorUploadResponseDto;
 import com.vfs.onb.dto.VendorPendingListResponseDto;
+import com.vfs.onb.entity.VendorIMMappingMaster;
 import com.vfs.onb.entity.VendorIMMappingPreAuth;
-import com.vfs.onb.repository.VendorRepository;
+import com.vfs.onb.repository.VendorIMMappingHistoryRepository;
+import com.vfs.onb.repository.VendorIMMappingMasterRepository;
+import com.vfs.onb.repository.VendorIMMappingPreAuthRepository;
 import com.vfs.onb.service.BulkVendorMappingService;
 
 @Service
@@ -29,10 +33,15 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 	private static final Logger logger = LoggerFactory.getLogger(BulkVendorMappingServiceImpl.class);
 
 	@Autowired
-	VendorRepository vendorrepo;
+	VendorIMMappingPreAuthRepository vendorimpreauthrepo;
+
+	@Autowired
+	VendorIMMappingMasterRepository vendorimmasterrepo;
+
+	@Autowired
+	VendorIMMappingHistoryRepository vendorimhistoryrepo;
 
 	// Maker
-	
 	public BulkVendorUploadResponseDto addBulkVendor(String id, MultipartFile file) throws IOException {
 
 		List<String> contentList = null;
@@ -48,7 +57,7 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 			contentList = contentList.stream().filter(cl -> StringUtils.isNotEmpty(cl)).collect(Collectors.toList());
 
 			file.transferTo(new File("C:\\Users\\Sbi\\Downloads\\uploadcheck\\" + file.getOriginalFilename()));
-			List<String> duplicatevendorim =null;			
+			List<String> existingvendors = new ArrayList<String>();
 
 			for (String content : contentList) {
 
@@ -60,8 +69,7 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 						splitrow = content.split(",");
 					}
 
-					if ((!duplicatevendorim.contains(id + splitrow[1]))) {
-
+					if (!vendorimpreauthrepo.existsByvendorimcode(id + splitrow[1])) {
 						vendorimmappingpreauth = new VendorIMMappingPreAuth();
 
 						vendorimmappingpreauth.setVendorimcode(id + splitrow[1]);
@@ -71,7 +79,7 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 						vendorimmappingpreauth.setCreationtime(new Timestamp(System.currentTimeMillis()));
 						vendorimmappingpreauth.setStatus(StatusConstant.PENDING_STATUS);
 						vendorimmappingpreauth.setUploadfilelocation("C:\\Users\\Sbi\\Downloads\\uploadcheck\\");
-						vendorimmappingpreauth.setUploadedby("LOGIN USER");
+						vendorimmappingpreauth.setUploadedby("MAKER USER");
 
 						bulkvendetailslist.add(vendorimmappingpreauth);
 						logger.info("VendorDetails Values Set >>>>> " + splitrow.toString());
@@ -79,14 +87,19 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 						responsedto.setMessagedescr(StatusConstant.MAPPED_VENDOR_IM_SUCCESSFULLY);
 						responsedto.setStatus(StatusConstant.STATUS_SUCCESS);
 						responsedto.setStatuscode(StatusConstant.STATUS_SUCCESS_CODE);
-
 					} else {
-
-						// Already Mapped VendorIM
+						existingvendors.add(id + splitrow[1]);
 					}
 				}
+				vendorimpreauthrepo.saveAll(bulkvendetailslist);
+			} 
+
+			if (!existingvendors.isEmpty()) {
+				responsedto.setMessagedescr(
+						"File Contains Duplicate Entries Please Check , Other Non Duplicates Records Inserted Successfully");
+				responsedto.setStatus(StatusConstant.STATUS_SUCCESS);
+				responsedto.setStatuscode(StatusConstant.STATUS_SUCCESS_CODE);
 			}
-			vendorrepo.saveAll(bulkvendetailslist);
 		} catch (Exception e) {
 			responsedto.setStatuscode(StatusConstant.STATUS_FAILURE_CODE);
 			responsedto.setStatus(StatusConstant.STATUS_FAILURE);
@@ -100,11 +113,11 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 	public VendorPendingListResponseDto getPendingData(String imcode) {
 		VendorPendingListResponseDto responseDTO = new VendorPendingListResponseDto();
 		try {
-			if (vendorrepo.pendingVendorList(imcode) != null) {
+			if (vendorimpreauthrepo.pendingVendorList(imcode) != null) {
 				responseDTO.setMessagedescr("All Pending Vendors");
 				responseDTO.setStatus(StatusConstant.STATUS_SUCCESS);
 				responseDTO.setStatuscode(StatusConstant.STATUS_SUCCESS_CODE);
-				responseDTO.setData(vendorrepo.pendingVendorList(imcode));
+				responseDTO.setData(vendorimpreauthrepo.pendingVendorList(imcode));
 			} else {
 				responseDTO.setStatuscode(StatusConstant.STATUS_DATA_NOT_FOUND_CODE);
 				responseDTO.setStatus(StatusConstant.STATUS_FAILURE);
@@ -121,12 +134,39 @@ public class BulkVendorMappingServiceImpl implements BulkVendorMappingService {
 		return responseDTO;
 	}
 
-	@Override
-	public BulkVendorUploadResponseDto addapprovedBulkVendor(ArrayList<VendorIMMappingPreAuth> bulkvendor) {
+	@Transactional
+	public BulkVendorUploadResponseDto addapprovedBulkVendor(List<String> vendorimcode) {
 		BulkVendorUploadResponseDto responseDTO = new BulkVendorUploadResponseDto();
 		try {
-			vendorrepo.saveAll(bulkvendor);
-			responseDTO.setMessagedescr("Approved Pending Selected Vendors");
+
+			VendorIMMappingPreAuth vendorimmappingpreauth = new VendorIMMappingPreAuth();
+			VendorIMMappingMaster vendorimmapping = null;
+
+			List<VendorIMMappingPreAuth> bulkvendetailslist = new ArrayList<VendorIMMappingPreAuth>();
+			List<VendorIMMappingMaster> bulkvednor = new ArrayList<VendorIMMappingMaster>();
+
+			for (String onevendor : vendorimcode) {
+				vendorimmappingpreauth = vendorimpreauthrepo.findByvendorimcode(onevendor);
+				vendorimmapping = new VendorIMMappingMaster();
+				
+				vendorimmapping.setImcode(vendorimmappingpreauth.getImcode());
+				vendorimmapping.setStatus("Approved");
+				vendorimmapping.setUploadedby(vendorimmappingpreauth.getUploadedby());
+				vendorimmapping.setUploadfilelocation(vendorimmappingpreauth.getUploadfilelocation());
+				vendorimmapping.setVendorcode(vendorimmappingpreauth.getVendorcode());
+				vendorimmapping.setVendorimcode(vendorimmappingpreauth.getVendorimcode());
+				vendorimmapping.setCreationtime(vendorimmappingpreauth.getCreationtime());
+				vendorimmapping.setVendorname(vendorimmappingpreauth.getVendorname());
+				vendorimmapping.setAuthorizedtime(new Timestamp(System.currentTimeMillis()));
+				vendorimmapping.setAuthorizedby("CHECKER USER");
+				
+				vendorimpreauthrepo.deleteByvendorimcode(onevendor);
+				bulkvednor.add(vendorimmapping);
+			}
+			
+			vendorimmasterrepo.saveAll(bulkvednor);
+
+			responseDTO.setMessagedescr("Selected Vendors Status Approved");
 			responseDTO.setStatus(StatusConstant.STATUS_SUCCESS);
 			responseDTO.setStatuscode(StatusConstant.STATUS_SUCCESS_CODE);
 		} catch (Exception e) {

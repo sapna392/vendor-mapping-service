@@ -2,6 +2,7 @@ package com.vfs.onb.service;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +18,10 @@ public interface BulkVendorMappingService {
 
 	VendorPendingListResponseDto getPendingData(String id);
  
-	BulkVendorUploadResponseDto addapprovedBulkVendor(ArrayList<VendorIMMappingPreAuth> bulkvendor);
+	default BulkVendorUploadResponseDto addapprovedBulkVendor(ArrayList<VendorIMMappingPreAuth> bulkvendor) {
+		return null;
+	}
+
+	BulkVendorUploadResponseDto addapprovedBulkVendor(List<String> vendorimcode);
 }
   

@@ -2,6 +2,7 @@ package com.vfs.onb.controller;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,7 +24,7 @@ import com.vfs.onb.dto.VendorPendingListResponseDto;
 import com.vfs.onb.entity.VendorIMMappingPreAuth;
 import com.vfs.onb.service.BulkVendorMappingService; 
 
-@RestController
+@RestController 
 @RequestMapping(value = "scfu/api")
 @CrossOrigin 
 public class BulkVendorMappingController { 
@@ -47,9 +49,12 @@ public class BulkVendorMappingController {
 	} 
 
 	// Checker Update Pending Vendor to Approved
-	@PutMapping(value = "/approvedbulkvendor")
-	public BulkVendorUploadResponseDto approvedPendingVendor(@RequestBody ArrayList<VendorIMMappingPreAuth> bulkvendor) throws IOException {
+	@PutMapping(value = "/approvedbulkvendor")  
+	//public BulkVendorUploadResponseDto approvedPendingVendor(@RequestBody ArrayList<VendorIMMappingPreAuth> bulkvendor) throws IOException {
+	public BulkVendorUploadResponseDto approvedPendingVendor(@RequestBody ArrayList<String> vendorimcode) throws IOException {	
 		logger.info("In VendorFinController uploadFile method IM Code From Request >>>>>>>>>>>>>    " );
-		return bulkvendormappingservice.addapprovedBulkVendor(bulkvendor);
+		//return bulkvendormappingservice.addapprovedBulkVendor(bulkvendor);
+		vendorimcode.forEach(System.out::println);
+		return bulkvendormappingservice.addapprovedBulkVendor(vendorimcode);
 	}
 }
